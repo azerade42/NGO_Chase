@@ -5,6 +5,7 @@ using UnityEngine.InputSystem;
 public class PlayerInputController : MonoBehaviour, PlayerInputActions.IGameplayActions
 {
     public Action<Vector2> OnMoveInput;
+    public Action<float> OnLookInput;
 
     private PlayerInputActions _playerInputActions;
     private PlayerInput _playerInput;
@@ -41,5 +42,10 @@ public class PlayerInputController : MonoBehaviour, PlayerInputActions.IGameplay
     public void OnMove(InputAction.CallbackContext context)
     {
         OnMoveInput?.Invoke(context.ReadValue<Vector2>());
+    }
+
+    public void OnLook(InputAction.CallbackContext context)
+    {
+        OnLookInput?.Invoke(context.ReadValue<float>());
     }
 }

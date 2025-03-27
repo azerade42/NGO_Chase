@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 3110394432406816301}
   - component: {fileID: 2965201747436047091}
   m_Layer: 0
-  m_Name: Capsule
+  m_Name: Body
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -162,7 +162,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   GlobalObjectIdHash: 600036467
-  InScenePlacedSourceGlobalObjectIdHash: 0
+  InScenePlacedSourceGlobalObjectIdHash: 600036467
   DeferredDespawnTick: 0
   Ownership: 1
   AlwaysReplicateAsRoot: 0
@@ -187,7 +187,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
+  _playerCameraPrefab: {fileID: 1074235328140709621, guid: ce44865fb874ea140bf440355558ddeb, type: 3}
   _moveSpeed: 8
+  _lookSpeed: 180
 --- !u!114 &5179113458073550167
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -302,7 +304,6 @@ GameObject:
   - component: {fileID: 1688465460216641096}
   - component: {fileID: 8864854218990165434}
   - component: {fileID: 6239681152268445854}
-  - component: {fileID: 2966109344664916457}
   m_Layer: 0
   m_Name: Face
   m_TagString: Untagged
@@ -378,24 +379,3 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!65 &2966109344664916457
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6401883955348669089}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
