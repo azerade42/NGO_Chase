@@ -1,22 +1,27 @@
 using UnityEngine;
 using Unity.Netcode;
 using Unity.Cinemachine;
+using System;
 
 [RequireComponent(typeof(PlayerInputController), typeof(CharacterController))]
 public class PlayerController : NetworkBehaviour
 {
-    
+    public static Action<Transform> OnSpawnedServer;
+    public static Action<ulong> OnTouchedAnotherPlayer;
+
     private CharacterController _controller;
     private PlayerInputController _playerInput;
     private Vector2 _moveDirection;
-    private float _rotationDelta;
     
     float verticalVelocity = 0;
+    bool mouseLocked = false;
+    bool _movementDisabled;
 
-    [SerializeField] private CinemachineCamera freeCam;
+    [SerializeField] private NetworkedHitbox _hitbox;
+    [SerializeField] private CinemachineCamera _freeCam;
+    [SerializeField] private Renderer _bodyRenderer;
     [SerializeField] private float _moveSpeed;
     [SerializeField] private float _lookSpeed;
-    bool mouseLocked = false;
 
     private NetworkVariable<Color> _bodyColor = new(
         Color.blue,
@@ -32,50 +37,50 @@ public class PlayerController : NetworkBehaviour
     private void OnEnable()
     {
         _playerInput.OnMoveInput += UpdateMoveDirection;
-        _playerInput.OnLookInput += UpdateLookDirection;
+        _hitbox.OnPlayerTouched += NotifyAnotherPlayerTouchedRpc;
+        RoundManager.OnHidePhaseStarted += ToggleMovementOff;
+        RoundManager.OnChasePhaseStarted += ToggleMovementOn;
     }
 
     private void OnDisable()
     {
         _playerInput.OnMoveInput -= UpdateMoveDirection;
-        _playerInput.OnLookInput -= UpdateLookDirection;
+        _hitbox.OnPlayerTouched -= NotifyAnotherPlayerTouchedRpc;
+        RoundManager.OnChasePhaseStarted -= ToggleMovementOff;
+        RoundManager.OnChasePhaseStarted -= ToggleMovementOn;
     }
 
-    // used instead of start
+    // Runs before start because players are spawned dynamically
     public override void OnNetworkSpawn()
     {
-        if (IsServer)
+        if (HasAuthority && IsLocalPlayer)
         {
-            _bodyColor.Value = Random.ColorHSV(0, 1, 1, 1, 1, 1);
+            _bodyColor.Value = Color.red;
+        }
+        else if (HasAuthority)
+        {
+            _bodyColor.Value = UnityEngine.Random.ColorHSV(0.3f, 0.7f, 1, 1, 1, 1);
+            Vector2 randomPos = UnityEngine.Random.insideUnitCircle.normalized * 5f;
+            Vector3 movement = new Vector3(randomPos.x, transform.position.y, randomPos.y);
+            _controller.Move(movement);
         }
 
-        transform.GetChild(0).GetComponent<Renderer>().material.color = _bodyColor.Value;
+        _bodyRenderer.material.color = _bodyColor.Value;
 
         if (!IsOwner)
+        {
+            _freeCam.gameObject.SetActive(false);
             return;
-        
-        InitializeCamera();
+        }
+
+        _freeCam.Target.TrackingTarget = transform;
         ToggleMouseLock();
-
-
     }
-
-    // public override void OnNetworkDespawn()
-    // {
-    //     if (!IsServer)
-    //         _bodyColor.OnValueChanged -= OnBodyColorChanged;
-
-        
-    // }
-
-    // private void OnBodyColorChanged(Color oldValue, Color newValue)
-    // {
-    //     _bodyColor
-    // }
 
     private void Start()
     {
-        
+        if (HasAuthority)
+            OnSpawnedServer?.Invoke(transform);
     }
 
     private void Update()
@@ -88,8 +93,11 @@ public class PlayerController : NetworkBehaviour
             ToggleMouseLock();
         }
 
-        Vector3 flatForward = Vector3.ProjectOnPlane(freeCam.transform.forward, Vector3.up).normalized;
-        Vector3 flatRight = Vector3.ProjectOnPlane(freeCam.transform.right, Vector3.up).normalized;
+        if (_movementDisabled)
+            return;
+
+        Vector3 flatForward = Vector3.ProjectOnPlane(_freeCam.transform.forward, Vector3.up).normalized;
+        Vector3 flatRight = Vector3.ProjectOnPlane(_freeCam.transform.right, Vector3.up).normalized;
 
         Vector3 movement = _moveDirection.x * flatRight + _moveDirection.y * flatForward;
 
@@ -102,9 +110,6 @@ public class PlayerController : NetworkBehaviour
 
         _controller.Move(movement * _moveSpeed * Time.deltaTime);
 
-        // Vector3 movement = (_moveDirection.x * flatRight + _moveDirection.y * flatForward).normalized;
-        // _controller.Move(_moveSpeed * Time.deltaTime * movement);
-
         Vector3 lookDirection = new Vector3(movement.x, 0, movement.z);
 
         if (movement.sqrMagnitude > Mathf.Epsilon * Mathf.Epsilon)
@@ -115,7 +120,7 @@ public class PlayerController : NetworkBehaviour
 
         if (_controller.isGrounded)
         {
-            verticalVelocity = -1f; // slight downward to stay grounded
+            verticalVelocity = -1f;
         }
         else
         {
@@ -124,15 +129,6 @@ public class PlayerController : NetworkBehaviour
 
         Vector3 gravityMove = new Vector3(0, verticalVelocity, 0);
         _controller.Move(gravityMove * Time.deltaTime);
-
-
-        // Quaternion rotationChange = Quaternion.Euler(0, _rotationDelta, 0);
-        // Quaternion newRotation = transform.rotation * rotationChange;
-        // transform.rotation = Quaternion.RotateTowards(transform.rotation, newRotation, Time.deltaTime * _lookSpeed);
-
-        // Vector3 movement = new Vector3(_moveDirection.x, 0, _moveDirection.y);
-        // Vector3 movementRotated = transform.right * movement.x + transform.forward * movement.z;
-        // _controller.Move(movementRotated * _moveSpeed * Time.deltaTime);
     }
 
     private void ToggleMouseLock()
@@ -152,22 +148,22 @@ public class PlayerController : NetworkBehaviour
     }
 
     private void UpdateMoveDirection(Vector2 direction) => _moveDirection = direction.normalized;
-
-    private void UpdateLookDirection(float delta) => _rotationDelta = delta;
-
-    private void InitializeCamera()
+    private void ToggleMovementOff()
     {
-        freeCam.Target.TrackingTarget = transform;
-        // GameObject playerCamera = Instantiate(_playerCameraPrefab);
-        // if (playerCamera.TryGetComponent(out Camera cam))
-        // {
-        //     if (playerCamera.TryGetComponent(out CameraFollow follow))
-        //     {
-        //         follow.ObjToFollow = transform;
-        //         Camera.main.gameObject.SetActive(false);
-        //         cam.gameObject.SetActive(true);
-        //         cam.gameObject.AddComponent<AudioListener>();
-        //     }
-        // }
+        if (HasAuthority && IsLocalPlayer)
+            return;
+        
+        _movementDisabled = true;
+    }
+
+    private void ToggleMovementOn()
+    {
+        _movementDisabled = false;
+    }
+
+    [Rpc(SendTo.Server)]
+    private void NotifyAnotherPlayerTouchedRpc(ulong clientID)
+    {
+        OnTouchedAnotherPlayer?.Invoke(clientID);
     }
 }
