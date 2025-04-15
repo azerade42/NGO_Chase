@@ -45,6 +45,7 @@ public class LobbyManager : NetworkBehaviour
         
         print($"player {_playerCount} added to lobby");
         _playersInLobby[_playerCount - 1] = player;
+        player.ServerTeleportRpc(_startingTransforms[0].position);
         OnPlayerAddedToLobby?.Invoke(_playerCount);
     }
 
