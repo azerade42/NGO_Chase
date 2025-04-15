@@ -1,34 +1,32 @@
 using System;
+using System.Collections.Generic;
 using Unity.Netcode;
-using UnityEditor.PackageManager;
+using Unity.Netcode.Components;
 using UnityEngine;
 
 public class LobbyManager : NetworkBehaviour
 {
     public static Action<int> OnPlayerAddedToLobby;
     public static Action OnAllPlayersMoved;
-
-    private Transform[] _playersInLobby;
-    private int _playerCount = 0;
     [SerializeField] private int _maxPlayerCount;
+    [SerializeField] Transform [] _startingTransforms;
 
-    [SerializeField] Transform hostTransform;
-    [SerializeField] Transform p1Transform;
-    [SerializeField] Transform p2Transform;
-    [SerializeField] Transform p3Transform;
+    
+    public static int _playerCount = 0;
+    private PlayerController[] _playersInLobby;
 
     private void Awake()
     {
-        _playersInLobby = new Transform[_maxPlayerCount];   
+        _playersInLobby = new PlayerController[_maxPlayerCount];
     }
 
     public override void OnNetworkSpawn()
     {
         if (!HasAuthority)
             return;
-        
+
         PlayerController.OnSpawnedServer += AddPlayerToLobby;
-        RoundManager.OnHidePhaseStarted += MoveLobbyToPositionsRpc;
+        RoundManager.OnHidePhaseStarted += MoveLobbyToPositions;
     }
 
     public override void OnNetworkDespawn()
@@ -37,41 +35,25 @@ public class LobbyManager : NetworkBehaviour
             return;
         
         PlayerController.OnSpawnedServer -= AddPlayerToLobby;
-        RoundManager.OnHidePhaseStarted -= MoveLobbyToPositionsRpc;
+        RoundManager.OnHidePhaseStarted -= MoveLobbyToPositions;
     }
 
-    private void AddPlayerToLobby(Transform player)
+    private void AddPlayerToLobby(PlayerController player)
     {
-        _playersInLobby[_playerCount++] = player;
+        if (++_playerCount > _maxPlayerCount)
+            return;
+        
+        print($"player {_playerCount} added to lobby");
+        _playersInLobby[_playerCount - 1] = player;
         OnPlayerAddedToLobby?.Invoke(_playerCount);
     }
 
-    [Rpc(SendTo.Everyone)]
-    private void MoveLobbyToPositionsRpc()
+    private void MoveLobbyToPositions()
     {
-        Transform transformToUse;
-        ulong id = NetworkManager.Singleton.LocalClientId;
-
-        switch (id) // yanderedev aa code
+        for (int i = 0; i < _playerCount; i++)
         {
-            case 0:
-                transformToUse = hostTransform;
-                break;
-            case 1:
-                transformToUse = p1Transform;
-                break;
-             case 2:
-                transformToUse = p2Transform;
-                break;
-             case 3:
-                transformToUse = p3Transform;
-                break;
-
-            default:
-                return;
+            Vector3 newPos = _startingTransforms[i].position;
+            _playersInLobby[i].ServerTeleportRpc(newPos);
         }
-
-        _playersInLobby[id].transform.position = transformToUse.position;
-        _playersInLobby[id].transform.rotation = transformToUse.rotation;
     }
 }

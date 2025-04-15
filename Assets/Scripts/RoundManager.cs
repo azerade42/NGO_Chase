@@ -10,14 +10,16 @@ public class RoundManager : NetworkBehaviour
     public static Action OnChasePhaseStarted;
     public static Action OnRoundEndedRpc;
 
-    private const string HOST_CHASE_PHASE_MESSAGE = "You're being chased!";
-    private const string CLIENT_CHASE_PHASE_MESSAGE = "Catch the red guy!";
-    private const string HOST_HIDE_PHASE_MESSAGE = "Run and hide!";
-    private const string CLIENT_HIDE_PHASE_MESSAGE = "Hold on!";
-    private const string ROUND_OVER_MESSAGE = "Round completed!";
+    private readonly string HOST_CHASE_PHASE_MESSAGE = "You're being chased!";
+    private readonly string CLIENT_CHASE_PHASE_MESSAGE = "Catch the red guy!";
+    private readonly string HOST_HIDE_PHASE_MESSAGE = "Run and hide!";
+    private readonly string CLIENT_HIDE_PHASE_MESSAGE = "Hold on!";
+    private readonly string HOST_WIN_MESSAGE = "Red guy wins!";
+    private readonly string CLIENT_WIN_MESSAGE = "The red guy has been caught!";
 
-    private Coroutine countdownRoutine;
+    private Coroutine _countdownRoutine;
     private bool _roundIsActive;
+    public bool _roundCount { get; private set; }
     
 
     [SerializeField] int _roundStartCountdownTime;
@@ -30,7 +32,7 @@ public class RoundManager : NetworkBehaviour
             return;
 
         LobbyManager.OnPlayerAddedToLobby += BeginRound;
-        PlayerController.OnTouchedAnotherPlayer += EndRound;
+        PlayerController.OnTouchedAnotherPlayer += ClientWonRound;
     }
 
     public override void OnNetworkDespawn()
@@ -39,7 +41,7 @@ public class RoundManager : NetworkBehaviour
             return;
 
         LobbyManager.OnPlayerAddedToLobby -= BeginRound;
-        PlayerController.OnTouchedAnotherPlayer -= EndRound;
+        PlayerController.OnTouchedAnotherPlayer -= ClientWonRound;
     }
 
     private IEnumerator BeginCountdown(float delayStart, int timeRemaining, Action EndAction)
@@ -69,15 +71,15 @@ public class RoundManager : NetworkBehaviour
             return;
         
         // start the countdown if 2 or more players have joined
-        if (playerCount >= 2 && countdownRoutine == null)
+        if (playerCount >= 2 && _countdownRoutine == null)
         {
             Action OnCountdownEnd = BeginHidePhase;
-            countdownRoutine = StartCoroutine(BeginCountdown(0, _roundStartCountdownTime, OnCountdownEnd));
+            _countdownRoutine = StartCoroutine(BeginCountdown(0, _roundStartCountdownTime, OnCountdownEnd));
         }
         // stop the countdown if less than 2 players are in the lobby
-        else if (playerCount < 2 && countdownRoutine != null)
+        else if (playerCount < 2 && _countdownRoutine != null)
         {
-            StopCoroutine(countdownRoutine);
+            StopCoroutine(_countdownRoutine);
         }
     }
 
@@ -87,7 +89,7 @@ public class RoundManager : NetworkBehaviour
 
         HidePhaseStartRpc();
         Action OnCountdownEnd = BeginChasePhase;
-        countdownRoutine = StartCoroutine(BeginCountdown(3, _hideCountdownTime - 3, OnCountdownEnd));
+        _countdownRoutine = StartCoroutine(BeginCountdown(3, _hideCountdownTime - 3, OnCountdownEnd));
     }
 
     [Rpc(SendTo.ClientsAndHost)]
@@ -105,8 +107,8 @@ public class RoundManager : NetworkBehaviour
         OnChasePhaseStarted?.Invoke();
         ChaseStartRpc();
 
-        Action OnCountdownEnd = () => { EndRound(0); };
-        countdownRoutine = StartCoroutine(BeginCountdown(3, _chaseCountdownTime - 3, OnCountdownEnd));
+        Action OnCountdownEnd = () => { EndRound(true); };
+        _countdownRoutine = StartCoroutine(BeginCountdown(3, _chaseCountdownTime - 3, OnCountdownEnd));
     }
 
     [Rpc(SendTo.ClientsAndHost)]
@@ -118,31 +120,36 @@ public class RoundManager : NetworkBehaviour
             OnCountdownMessageChangedRpc?.Invoke(CLIENT_CHASE_PHASE_MESSAGE);
     }
 
-    private void EndRound(ulong clientID)
+    private void ClientWonRound() => EndRound(false);
+    private void EndRound(bool hostWon)
     {
         if (!_roundIsActive)
             return;
         
         _roundIsActive = false;
 
-        if (countdownRoutine != null)
-            StopCoroutine(countdownRoutine);
-
-        EndRoundRpc();
-        Debug.Log($"Client {clientID} is the winner!");
-
+        if (_countdownRoutine != null)
+            StopCoroutine(_countdownRoutine);
+        
         Invoke(nameof(RestartRound), 5f);
+        
+        EndRoundRpc(hostWon);
     }
 
     private void RestartRound()
     {
-        BeginRound(2);
+        _countdownRoutine = null;
+        BeginRound(LobbyManager._playerCount);
     }
 
     [Rpc(SendTo.ClientsAndHost)]
-    private void EndRoundRpc()
+    private void EndRoundRpc(bool hostWon)
     {
         OnRoundEndedRpc?.Invoke();
-        OnCountdownMessageChangedRpc?.Invoke(ROUND_OVER_MESSAGE);
+
+        if (hostWon)
+            OnCountdownMessageChangedRpc?.Invoke(HOST_WIN_MESSAGE);
+        else
+            OnCountdownMessageChangedRpc?.Invoke(CLIENT_WIN_MESSAGE);
     }   
 }

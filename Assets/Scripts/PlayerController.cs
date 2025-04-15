@@ -2,12 +2,13 @@ using UnityEngine;
 using Unity.Netcode;
 using Unity.Cinemachine;
 using System;
+using Unity.Netcode.Components;
 
 [RequireComponent(typeof(PlayerInputController), typeof(CharacterController))]
 public class PlayerController : NetworkBehaviour
 {
-    public static Action<Transform> OnSpawnedServer;
-    public static Action<ulong> OnTouchedAnotherPlayer;
+    public static Action<PlayerController> OnSpawnedServer;
+    public static Action OnTouchedAnotherPlayer;
 
     private CharacterController _controller;
     private PlayerInputController _playerInput;
@@ -29,6 +30,12 @@ public class PlayerController : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    private NetworkVariable<Vector3> _startPos = new(
+        default,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
     private void Awake()
     {
         _controller = GetComponent<CharacterController>();
@@ -38,49 +45,56 @@ public class PlayerController : NetworkBehaviour
     {
         _playerInput.OnMoveInput += UpdateMoveDirection;
         _hitbox.OnPlayerTouched += NotifyAnotherPlayerTouchedRpc;
-        RoundManager.OnHidePhaseStarted += ToggleMovementOff;
-        RoundManager.OnChasePhaseStarted += ToggleMovementOn;
+        RoundManager.OnHidePhaseStarted += ToggleClientMovementOffRpc;
+        RoundManager.OnChasePhaseStarted += ToggleMovementOnRpc;
     }
 
     private void OnDisable()
     {
         _playerInput.OnMoveInput -= UpdateMoveDirection;
         _hitbox.OnPlayerTouched -= NotifyAnotherPlayerTouchedRpc;
-        RoundManager.OnChasePhaseStarted -= ToggleMovementOff;
-        RoundManager.OnChasePhaseStarted -= ToggleMovementOn;
+        RoundManager.OnChasePhaseStarted -= ToggleClientMovementOffRpc;
+        RoundManager.OnChasePhaseStarted -= ToggleMovementOnRpc;
     }
 
     // Runs before start because players are spawned dynamically
     public override void OnNetworkSpawn()
     {
-        if (HasAuthority && IsLocalPlayer)
+        if (HasAuthority) // Runs only on server
         {
-            _bodyColor.Value = Color.red;
-        }
-        else if (HasAuthority)
-        {
-            _bodyColor.Value = UnityEngine.Random.ColorHSV(0.3f, 0.7f, 1, 1, 1, 1);
-            Vector2 randomPos = UnityEngine.Random.insideUnitCircle.normalized * 5f;
-            Vector3 movement = new Vector3(randomPos.x, transform.position.y, randomPos.y);
-            _controller.Move(movement);
+            if (IsLocalPlayer) // Runs only for host on server
+            {
+                _bodyColor.Value = Color.red;
+                transform.GetChild(0).GetComponent<Collider>().enabled = false;
+            }
+            else
+            {
+                _bodyColor.Value = UnityEngine.Random.ColorHSV(0.3f, 0.7f, 1, 1, 1, 1);
+                Vector2 randomPos = UnityEngine.Random.insideUnitCircle.normalized * 5f;
+                _startPos.Value = new Vector3(randomPos.x, transform.position.y, randomPos.y);
+            }
         }
 
-        _bodyRenderer.material.color = _bodyColor.Value;
-
-        if (!IsOwner)
+        if (IsOwner) // Runs only on the client that controls this object
+        {
+            _freeCam.Target.TrackingTarget = transform;
+            ToggleMouseLock();
+        }
+        
+        if (!IsOwner) // Runs only on clients that don't control this object
         {
             _freeCam.gameObject.SetActive(false);
-            return;
         }
 
-        _freeCam.Target.TrackingTarget = transform;
-        ToggleMouseLock();
+        // Runs on server and all clients
+        _bodyRenderer.material.color = _bodyColor.Value;
+        _controller.Move(_startPos.Value);
     }
 
     private void Start()
     {
         if (HasAuthority)
-            OnSpawnedServer?.Invoke(transform);
+            OnSpawnedServer?.Invoke(this);
     }
 
     private void Update()
@@ -93,9 +107,12 @@ public class PlayerController : NetworkBehaviour
             ToggleMouseLock();
         }
 
-        if (_movementDisabled)
-            return;
+        if (!_movementDisabled)
+            Move();
+    }
 
+    private void Move()
+    {
         Vector3 flatForward = Vector3.ProjectOnPlane(_freeCam.transform.forward, Vector3.up).normalized;
         Vector3 flatRight = Vector3.ProjectOnPlane(_freeCam.transform.right, Vector3.up).normalized;
 
@@ -148,7 +165,15 @@ public class PlayerController : NetworkBehaviour
     }
 
     private void UpdateMoveDirection(Vector2 direction) => _moveDirection = direction.normalized;
-    private void ToggleMovementOff()
+
+    [Rpc(SendTo.ClientsAndHost)]
+    public void ServerTeleportRpc(Vector3 position)
+    {
+        transform.position = position;
+    }
+    
+    [Rpc(SendTo.ClientsAndHost)]
+    private void ToggleClientMovementOffRpc()
     {
         if (HasAuthority && IsLocalPlayer)
             return;
@@ -156,14 +181,12 @@ public class PlayerController : NetworkBehaviour
         _movementDisabled = true;
     }
 
-    private void ToggleMovementOn()
-    {
-        _movementDisabled = false;
-    }
+    [Rpc(SendTo.ClientsAndHost)]
+    private void ToggleMovementOnRpc() => _movementDisabled = false;
 
     [Rpc(SendTo.Server)]
-    private void NotifyAnotherPlayerTouchedRpc(ulong clientID)
+    private void NotifyAnotherPlayerTouchedRpc()
     {
-        OnTouchedAnotherPlayer?.Invoke(clientID);
+        OnTouchedAnotherPlayer?.Invoke();
     }
 }
