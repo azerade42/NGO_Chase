@@ -66,6 +66,7 @@ public class PlayerController : NetworkBehaviour
             {
                 _bodyColor.Value = Color.red;
                 transform.GetChild(0).GetComponent<Collider>().enabled = false;
+                _moveSpeed *= 1.2f;
             }
             else
             {

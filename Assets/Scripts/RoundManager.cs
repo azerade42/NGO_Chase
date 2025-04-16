@@ -5,11 +5,12 @@ using UnityEngine;
 
 public class RoundManager : NetworkBehaviour
 {
-    public static Action<string> OnCountdownMessageChangedRpc;
+    public static Action<string> OnRoundMessageChangedRpc;
     public static Action OnHidePhaseStarted;
     public static Action OnChasePhaseStarted;
     public static Action OnRoundEndedRpc;
 
+    private readonly string LOBBY_MESSAGE = "Waiting for players...";
     private readonly string HOST_CHASE_PHASE_MESSAGE = "You're being chased!";
     private readonly string CLIENT_CHASE_PHASE_MESSAGE = "Catch the red guy!";
     private readonly string HOST_HIDE_PHASE_MESSAGE = "Run and hide!";
@@ -44,6 +45,11 @@ public class RoundManager : NetworkBehaviour
         PlayerController.OnTouchedAnotherPlayer -= ClientWonRound;
     }
 
+    private void Start()
+    {
+        OnRoundMessageChangedRpc?.Invoke(LOBBY_MESSAGE);
+    }
+
     private IEnumerator BeginCountdown(float delayStart, int timeRemaining, Action EndAction)
     {
         yield return new WaitForSeconds(delayStart);
@@ -62,7 +68,7 @@ public class RoundManager : NetworkBehaviour
     [Rpc(SendTo.ClientsAndHost)]
     private void UpdateCountdownTimeRpc(int countdownTime)
     {
-        OnCountdownMessageChangedRpc?.Invoke(countdownTime.ToString());
+        OnRoundMessageChangedRpc?.Invoke(countdownTime.ToString());
     }
 
     private void BeginRound(int playerCount)
@@ -96,9 +102,9 @@ public class RoundManager : NetworkBehaviour
     private void HidePhaseStartRpc()
     {
         if (NetworkManager.Singleton.LocalClientId == 0)
-            OnCountdownMessageChangedRpc?.Invoke(HOST_HIDE_PHASE_MESSAGE);
+            OnRoundMessageChangedRpc?.Invoke(HOST_HIDE_PHASE_MESSAGE);
         else
-            OnCountdownMessageChangedRpc?.Invoke(CLIENT_HIDE_PHASE_MESSAGE);
+            OnRoundMessageChangedRpc?.Invoke(CLIENT_HIDE_PHASE_MESSAGE);
     }
 
     private void BeginChasePhase()
@@ -115,9 +121,9 @@ public class RoundManager : NetworkBehaviour
     private void ChaseStartRpc()
     {
         if (NetworkManager.Singleton.LocalClientId == 0)
-            OnCountdownMessageChangedRpc?.Invoke(HOST_CHASE_PHASE_MESSAGE);
+            OnRoundMessageChangedRpc?.Invoke(HOST_CHASE_PHASE_MESSAGE);
         else
-            OnCountdownMessageChangedRpc?.Invoke(CLIENT_CHASE_PHASE_MESSAGE);
+            OnRoundMessageChangedRpc?.Invoke(CLIENT_CHASE_PHASE_MESSAGE);
     }
 
     private void ClientWonRound() => EndRound(false);
@@ -148,8 +154,8 @@ public class RoundManager : NetworkBehaviour
         OnRoundEndedRpc?.Invoke();
 
         if (hostWon)
-            OnCountdownMessageChangedRpc?.Invoke(HOST_WIN_MESSAGE);
+            OnRoundMessageChangedRpc?.Invoke(HOST_WIN_MESSAGE);
         else
-            OnCountdownMessageChangedRpc?.Invoke(CLIENT_WIN_MESSAGE);
+            OnRoundMessageChangedRpc?.Invoke(CLIENT_WIN_MESSAGE);
     }   
 }

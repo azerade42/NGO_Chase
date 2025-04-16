@@ -9,11 +9,11 @@ public class CountdownCanvasController : MonoBehaviour
     
     private void OnEnable()
     {        
-        RoundManager.OnCountdownMessageChangedRpc += UpdateCountdownText;
+        RoundManager.OnRoundMessageChangedRpc += UpdateCountdownText;
     }
     private void OnDisable()
     {
-        RoundManager.OnCountdownMessageChangedRpc -= UpdateCountdownText;
+        RoundManager.OnRoundMessageChangedRpc -= UpdateCountdownText;
     }
 
     private void Start()

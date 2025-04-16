@@ -44,8 +44,12 @@ public class LobbyManager : NetworkBehaviour
             return;
         
         print($"player {_playerCount} added to lobby");
+
         _playersInLobby[_playerCount - 1] = player;
-        player.ServerTeleportRpc(_startingTransforms[0].position);
+
+        int randomPos = UnityEngine.Random.Range(0, _startingTransforms.Length);
+        player.ServerTeleportRpc(_startingTransforms[randomPos].position + Vector3.up * 2f);
+        
         OnPlayerAddedToLobby?.Invoke(_playerCount);
     }
 
