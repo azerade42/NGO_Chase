@@ -6,7 +6,7 @@ using UnityEngine;
 
 public class LobbyManager : NetworkBehaviour
 {
-    public static Action<int> OnPlayerAddedToLobby;
+    public static Action<int, PlayerController> OnPlayerAddedToLobby;
     public static Action OnAllPlayersMoved;
     [SerializeField] private int _maxPlayerCount;
     [SerializeField] Transform [] _startingTransforms;
@@ -25,7 +25,7 @@ public class LobbyManager : NetworkBehaviour
         if (!HasAuthority)
             return;
 
-        PlayerController.OnSpawnedServer += AddPlayerToLobby;
+        PlayerController.OnSpawned += AddPlayerToLobby;
         RoundManager.OnHidePhaseStarted += MoveLobbyToPositions;
     }
 
@@ -34,7 +34,7 @@ public class LobbyManager : NetworkBehaviour
         if (!HasAuthority)
             return;
         
-        PlayerController.OnSpawnedServer -= AddPlayerToLobby;
+        PlayerController.OnSpawned -= AddPlayerToLobby;
         RoundManager.OnHidePhaseStarted -= MoveLobbyToPositions;
     }
 
@@ -48,17 +48,20 @@ public class LobbyManager : NetworkBehaviour
         _playersInLobby[_playerCount - 1] = player;
 
         int randomPos = UnityEngine.Random.Range(0, _startingTransforms.Length);
-        player.ServerTeleportRpc(_startingTransforms[randomPos].position + Vector3.up * 2f);
+        Vector3 newPos = _startingTransforms[randomPos].position + Vector3.up * 2f;
+        player.ServerTeleportRpc(newPos);
         
-        OnPlayerAddedToLobby?.Invoke(_playerCount);
+        OnPlayerAddedToLobby?.Invoke(_playerCount, player);
     }
 
     private void MoveLobbyToPositions()
     {
+        Quaternion hostRotation = _playersInLobby[0].transform.rotation;
         for (int i = 0; i < _playerCount; i++)
         {
             Vector3 newPos = _startingTransforms[i].position;
             _playersInLobby[i].ServerTeleportRpc(newPos);
+            _playersInLobby[i].ServerRotateRpc(hostRotation);
         }
     }
 }

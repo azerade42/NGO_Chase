@@ -4,11 +4,12 @@ using Unity.Cinemachine;
 using System;
 using Unity.Netcode.Components;
 using UnityEngine.InputSystem;
+using System.Collections;
 
 [RequireComponent(typeof(PlayerInputController), typeof(CharacterController))]
 public class PlayerController : NetworkBehaviour
 {
-    public static Action<PlayerController> OnSpawnedServer;
+    public static Action<PlayerController> OnSpawned;
     public static Action OnTouchedAnotherPlayer;
 
     private CharacterController _controller;
@@ -94,10 +95,13 @@ public class PlayerController : NetworkBehaviour
         _controller.Move(_startPos.Value);
     }
 
-    private void Start()
+
+
+    private IEnumerator Start()
     {
+        yield return new WaitForSeconds(0.25f);
         if (HasAuthority)
-            OnSpawnedServer?.Invoke(this);
+            OnSpawned?.Invoke(this);
     }
 
     private void Update()
@@ -173,6 +177,12 @@ public class PlayerController : NetworkBehaviour
     public void ServerTeleportRpc(Vector3 position)
     {
         transform.position = position;
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    public void ServerRotateRpc(Quaternion rotation)
+    {
+        transform.rotation = rotation;
     }
     
     [Rpc(SendTo.ClientsAndHost)]
