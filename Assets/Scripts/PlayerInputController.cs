@@ -1,6 +1,8 @@
 using System;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
 
 public class PlayerInputController : MonoBehaviour, PlayerInputActions.IGameplayActions
 {
@@ -22,22 +24,22 @@ public class PlayerInputController : MonoBehaviour, PlayerInputActions.IGameplay
     private void OnEnable()
     {
         _playerInputActions.Gameplay.SetCallbacks(this);
+        _playerInputActions.Gameplay.Enable();
+        _playerInput.ActivateInput();
     }
 
     private void OnDisable()
     {
+        DeactivateInput();
+    }
+
+    public void DeactivateInput()
+    {
         _playerInputActions.Gameplay.RemoveCallbacks(this);
+        _playerInputActions.Gameplay.Disable();
+        _playerInput.DeactivateInput();
     }
-
-    private void Start()
-    {
-        EnableGameplayInput();
-    }
-
-    private void EnableGameplayInput()
-    {
-        _playerInputActions.Gameplay.Enable();
-    }
+    
 
     public void OnMove(InputAction.CallbackContext context)
     {

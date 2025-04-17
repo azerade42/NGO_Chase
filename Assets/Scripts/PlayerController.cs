@@ -3,6 +3,7 @@ using Unity.Netcode;
 using Unity.Cinemachine;
 using System;
 using Unity.Netcode.Components;
+using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(PlayerInputController), typeof(CharacterController))]
 public class PlayerController : NetworkBehaviour
@@ -84,6 +85,7 @@ public class PlayerController : NetworkBehaviour
         
         if (!IsOwner) // Runs only on clients that don't control this object
         {
+            _playerInput.DeactivateInput();
             _freeCam.gameObject.SetActive(false);
         }
 
