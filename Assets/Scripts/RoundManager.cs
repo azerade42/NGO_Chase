@@ -19,7 +19,7 @@ public class RoundManager : NetworkBehaviour
     private readonly string CLIENT_WIN_MESSAGE = "The red guy has been caught!";
 
     private Coroutine _countdownRoutine;
-    private bool _roundIsActive;
+    public static bool RoundIsActive;
     public bool _roundCount { get; private set; }
     
 
@@ -45,11 +45,6 @@ public class RoundManager : NetworkBehaviour
         PlayerController.OnTouchedAnotherPlayer -= ClientWonRound;
     }
 
-    private void Start()
-    {
-        OnRoundMessageChangedRpc?.Invoke(LOBBY_MESSAGE);
-    }
-
     private IEnumerator BeginCountdown(float delayStart, int timeRemaining, Action EndAction)
     {
         yield return new WaitForSeconds(delayStart);
@@ -71,21 +66,24 @@ public class RoundManager : NetworkBehaviour
         OnRoundMessageChangedRpc?.Invoke(countdownTime.ToString());
     }
 
-    private void BeginRound(int playerCount, PlayerController pc)
+    private void BeginRound(ulong clientID)
     {
-        if (_roundIsActive)
+        if (RoundIsActive)
             return;
+
+        int playerCount = LobbyManager.PlayerCount;
         
-        // start the countdown if 2 or more players have joined
         if (playerCount >= 2 && _countdownRoutine == null)
         {
             Action OnCountdownEnd = BeginHidePhase;
             _countdownRoutine = StartCoroutine(BeginCountdown(0, _roundStartCountdownTime, OnCountdownEnd));
         }
-        // stop the countdown if less than 2 players are in the lobby
-        else if (playerCount < 2 && _countdownRoutine != null)
+        else if (playerCount < 2)
         {
-            StopCoroutine(_countdownRoutine);
+            OnRoundMessageChangedRpc?.Invoke(LOBBY_MESSAGE);
+
+            if (_countdownRoutine != null)
+                StopCoroutine(_countdownRoutine);
         }
     }
 
@@ -109,7 +107,7 @@ public class RoundManager : NetworkBehaviour
 
     private void BeginChasePhase()
     {
-        _roundIsActive = true;
+        RoundIsActive = true;
         OnChasePhaseStarted?.Invoke();
         ChaseStartRpc();
 
@@ -129,10 +127,10 @@ public class RoundManager : NetworkBehaviour
     private void ClientWonRound() => EndRound(false);
     private void EndRound(bool hostWon)
     {
-        if (!_roundIsActive)
+        if (!RoundIsActive)
             return;
         
-        _roundIsActive = false;
+        RoundIsActive = false;
 
         if (_countdownRoutine != null)
             StopCoroutine(_countdownRoutine);
@@ -145,7 +143,7 @@ public class RoundManager : NetworkBehaviour
     private void RestartRound()
     {
         _countdownRoutine = null;
-        BeginRound(LobbyManager._playerCount, null);
+        BeginRound(0);
     }
 
     [Rpc(SendTo.ClientsAndHost)]

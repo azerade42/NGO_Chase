@@ -29,10 +29,11 @@ public class LobbyCameraController : NetworkBehaviour
             follow.HorizontalAxis.Value = -180f;
     }
 
-    public void RotatePlayerToCamera(int playerCount, PlayerController pc)
+    public void RotatePlayerToCamera(ulong clientID)
     {
         float yRot = transform.rotation.eulerAngles.y;
         Quaternion newRot = Quaternion.Euler(0, yRot, 0);
-        pc.ServerRotateRpc(newRot);
+        PlayerController pc = NetworkManager.Singleton.SpawnManager.GetPlayerNetworkObject(clientID).GetComponent<PlayerController>();
+        pc.RotateRpc(newRot);
     }
 }

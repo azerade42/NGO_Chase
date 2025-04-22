@@ -9,7 +9,6 @@ using System.Collections;
 [RequireComponent(typeof(PlayerInputController), typeof(CharacterController))]
 public class PlayerController : NetworkBehaviour
 {
-    public static Action<PlayerController> OnSpawned;
     public static Action OnTouchedAnotherPlayer;
 
     private CharacterController _controller;
@@ -95,15 +94,6 @@ public class PlayerController : NetworkBehaviour
         _controller.Move(_startPos.Value);
     }
 
-
-
-    private IEnumerator Start()
-    {
-        yield return new WaitForSeconds(0.25f);
-        if (HasAuthority)
-            OnSpawned?.Invoke(this);
-    }
-
     private void Update()
     {
         if (!IsOwner)
@@ -174,13 +164,13 @@ public class PlayerController : NetworkBehaviour
     private void UpdateMoveDirection(Vector2 direction) => _moveDirection = direction.normalized;
 
     [Rpc(SendTo.ClientsAndHost)]
-    public void ServerTeleportRpc(Vector3 position)
+    public void TeleportRpc(Vector3 position)
     {
         transform.position = position;
     }
 
     [Rpc(SendTo.ClientsAndHost)]
-    public void ServerRotateRpc(Quaternion rotation)
+    public void RotateRpc(Quaternion rotation)
     {
         transform.rotation = rotation;
     }

@@ -6,14 +6,15 @@ using UnityEngine;
 
 public class LobbyManager : NetworkBehaviour
 {
-    public static Action<int, PlayerController> OnPlayerAddedToLobby;
+    public static Action<ulong> OnPlayerAddedToLobby;
     public static Action OnAllPlayersMoved;
-    [SerializeField] private int _maxPlayerCount;
-    [SerializeField] Transform [] _startingTransforms;
 
+    [SerializeField] private int _maxPlayerCount;
+    [SerializeField] private Transform [] _startingTransforms;
     
-    public static int _playerCount = 0;
+    public static int PlayerCount = 0;
     private PlayerController[] _playersInLobby;
+    private NetworkSpawnManager networkSpawnManager;
 
     private void Awake()
     {
@@ -24,8 +25,12 @@ public class LobbyManager : NetworkBehaviour
     {
         if (!HasAuthority)
             return;
+            
+        networkSpawnManager = NetworkManager.Singleton.SpawnManager;
 
-        PlayerController.OnSpawned += AddPlayerToLobby;
+        NetworkManager.Singleton.OnClientConnectedCallback += AddPlayerToLobby;
+        NetworkManager.Singleton.OnClientDisconnectCallback += RemovePlayerFromLobby;
+        
         RoundManager.OnHidePhaseStarted += MoveLobbyToPositions;
     }
 
@@ -34,34 +39,49 @@ public class LobbyManager : NetworkBehaviour
         if (!HasAuthority)
             return;
         
-        PlayerController.OnSpawned -= AddPlayerToLobby;
+        NetworkManager.Singleton.OnClientConnectedCallback -= AddPlayerToLobby;
+        NetworkManager.Singleton.OnClientDisconnectCallback -= RemovePlayerFromLobby;
+        
         RoundManager.OnHidePhaseStarted -= MoveLobbyToPositions;
     }
 
-    private void AddPlayerToLobby(PlayerController player)
+    private void AddPlayerToLobby(ulong clientID)
     {
-        if (++_playerCount > _maxPlayerCount)
+        if (PlayerCount + 1 > _maxPlayerCount)
             return;
-        
-        print($"player {_playerCount} added to lobby");
 
-        _playersInLobby[_playerCount - 1] = player;
+        NetworkObject playerObj = networkSpawnManager.GetPlayerNetworkObject(clientID);
+        PlayerController player = playerObj.GetComponent<PlayerController>();
+
+        if (player == null)
+            return;
+
+        _playersInLobby[PlayerCount] = player;
+        PlayerCount++;
+
+        print($"player {PlayerCount} added to lobby");
 
         int randomPos = UnityEngine.Random.Range(0, _startingTransforms.Length);
         Vector3 newPos = _startingTransforms[randomPos].position + Vector3.up * 2f;
-        player.ServerTeleportRpc(newPos);
+        player.TeleportRpc(newPos);
         
-        OnPlayerAddedToLobby?.Invoke(_playerCount, player);
+        OnPlayerAddedToLobby?.Invoke(clientID);
+    }
+
+    private void RemovePlayerFromLobby(ulong clientID)
+    {
+        _playersInLobby[clientID] = null;
+        PlayerCount--;
     }
 
     private void MoveLobbyToPositions()
     {
         Quaternion hostRotation = _playersInLobby[0].transform.rotation;
-        for (int i = 0; i < _playerCount; i++)
+        for (int i = 0; i < PlayerCount; i++)
         {
             Vector3 newPos = _startingTransforms[i].position;
-            _playersInLobby[i].ServerTeleportRpc(newPos);
-            _playersInLobby[i].ServerRotateRpc(hostRotation);
+            _playersInLobby[i].TeleportRpc(newPos);
+            _playersInLobby[i].RotateRpc(hostRotation);
         }
     }
 }
