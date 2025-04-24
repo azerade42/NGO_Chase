@@ -80,7 +80,8 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _hitbox: {fileID: 3073312180828112042}
   _freeCam: {fileID: 3702759608175051848}
-  _bodyRenderer: {fileID: 0}
+  _bodyRenderer: {fileID: 8171546744385169463}
+  _animator: {fileID: 8810273270971397441}
   _moveSpeed: 8
   _lookSpeed: 100
 --- !u!114 &5179113458073550167
@@ -621,7 +622,7 @@ MonoBehaviour:
   TransitionStateInfoList:
   - IsCrossFadeExit: 0
     Layer: 0
-    OriginatingState: -1270164188
+    OriginatingState: 1050096729
     DestinationState: 505678605
     TransitionDuration: 0.25
     TriggerNameHash: 914991998
@@ -660,6 +661,11 @@ CapsuleCollider:
   m_Height: 1.8
   m_Direction: 1
   m_Center: {x: 0, y: 0.9, z: 0}
+--- !u!137 &8171546744385169463 stripped
+SkinnedMeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 7355915943570368427, guid: 9bd72731ebe2248478ba4849c274a43b, type: 3}
+  m_PrefabInstance: {fileID: 1689514978542292892}
+  m_PrefabAsset: {fileID: 0}
 --- !u!95 &8810273270971397441 stripped
 Animator:
   m_CorrespondingSourceObject: {fileID: 7869543608362826461, guid: 9bd72731ebe2248478ba4849c274a43b, type: 3}

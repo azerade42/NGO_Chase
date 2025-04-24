@@ -4,7 +4,7 @@ using Unity.Netcode;
 
 public class NetworkedHitbox : NetworkBehaviour
 {
-    public event Action OnPlayerTouched;
+    public event Action<ulong> OnPlayerTouched;
 
     private void OnTriggerEnter(Collider other)
     {
@@ -12,11 +12,11 @@ public class NetworkedHitbox : NetworkBehaviour
         if (!HasAuthority)
             return;
 
-        PlayerController networkObject = other.GetComponentInParent<PlayerController>();
+        NetworkObject networkObject = other.GetComponentInParent<NetworkObject>();
 
-        if (networkObject != null)
+        if (networkObject != null && TryGetComponent(out PlayerController pc))
         {
-            OnPlayerTouched?.Invoke();
+            OnPlayerTouched?.Invoke(networkObject.OwnerClientId);
         }
     }
 }

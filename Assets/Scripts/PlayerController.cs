@@ -18,12 +18,17 @@ public class PlayerController : NetworkBehaviour
     float verticalVelocity = 0;
     bool mouseLocked = false;
     bool _movementDisabled;
+    bool _lockControls;
 
     [SerializeField] private NetworkedHitbox _hitbox;
     [SerializeField] private CinemachineCamera _freeCam;
     [SerializeField] private Renderer _bodyRenderer;
+    [SerializeField] private Animator _animator;
     [SerializeField] private float _moveSpeed;
     [SerializeField] private float _lookSpeed;
+
+    private readonly int _moveSpeedParameter = Animator.StringToHash("Speed");
+    private readonly int _diveParameter = Animator.StringToHash("Dive");
 
     private NetworkVariable<Color> _bodyColor = new(
         Color.blue,
@@ -45,6 +50,7 @@ public class PlayerController : NetworkBehaviour
     private void OnEnable()
     {
         _playerInput.OnMoveInput += UpdateMoveDirection;
+        _playerInput.OnDiveInput += Dive;
         _hitbox.OnPlayerTouched += NotifyAnotherPlayerTouchedRpc;
         RoundManager.OnHidePhaseStarted += ToggleClientMovementOffRpc;
         RoundManager.OnChasePhaseStarted += ToggleMovementOnRpc;
@@ -53,6 +59,7 @@ public class PlayerController : NetworkBehaviour
     private void OnDisable()
     {
         _playerInput.OnMoveInput -= UpdateMoveDirection;
+        _playerInput.OnDiveInput -= Dive;
         _hitbox.OnPlayerTouched -= NotifyAnotherPlayerTouchedRpc;
         RoundManager.OnChasePhaseStarted -= ToggleClientMovementOffRpc;
         RoundManager.OnChasePhaseStarted -= ToggleMovementOnRpc;
@@ -71,7 +78,7 @@ public class PlayerController : NetworkBehaviour
             }
             else
             {
-                _bodyColor.Value = UnityEngine.Random.ColorHSV(0.3f, 0.7f, 1, 1, 1, 1);
+                _bodyColor.Value = UnityEngine.Random.ColorHSV(0.3f, 0.7f, 1, 1, 0.5f, 0.5f);
                 Vector2 randomPos = UnityEngine.Random.insideUnitCircle.normalized * 5f;
                 _startPos.Value = new Vector3(randomPos.x, transform.position.y, randomPos.y);
             }
@@ -91,6 +98,7 @@ public class PlayerController : NetworkBehaviour
 
         // Runs on server and all clients
         _bodyRenderer.material.color = _bodyColor.Value;
+        _bodyRenderer.material.SetColor("_EmissionColor", _bodyColor.Value);
         _controller.Move(_startPos.Value);
     }
 
@@ -108,28 +116,64 @@ public class PlayerController : NetworkBehaviour
             Move();
     }
 
-    private void Move()
-    {
-        Vector3 flatForward = Vector3.ProjectOnPlane(_freeCam.transform.forward, Vector3.up).normalized;
-        Vector3 flatRight = Vector3.ProjectOnPlane(_freeCam.transform.right, Vector3.up).normalized;
+    private void Dive()
+    {        
+        _lockControls = true;
+        _animator.SetTrigger(_diveParameter);
+        StartCoroutine(WaitForDive());
+    }
 
-        Vector3 movement = _moveDirection.x * flatRight + _moveDirection.y * flatForward;
+    private IEnumerator WaitForDive()
+    {
+        yield return new WaitForEndOfFrame();
+        _animator.ResetTrigger(_diveParameter);
+
+        float endTime = Time.time + 2f;
+        Vector3 flatForward = Vector3.ProjectOnPlane(_freeCam.transform.forward, Vector3.up).normalized;
 
         // Raycast to get slope
         if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit slopeHit, 1.5f))
         {
             // Align movement to slope
-            movement = Vector3.ProjectOnPlane(movement, slopeHit.normal).normalized;
+            flatForward = Vector3.ProjectOnPlane(flatForward, slopeHit.normal).normalized;
+        }
+        while (Time.time < endTime)
+        {
+            _controller.Move(flatForward * 4.5f* Time.deltaTime);
+            yield return null;
         }
 
-        _controller.Move(movement * _moveSpeed * Time.deltaTime);
+        yield return new WaitForSeconds(2f);
 
-        Vector3 lookDirection = new Vector3(movement.x, 0, movement.z);
+        _lockControls = false;
+    }
 
-        if (movement.sqrMagnitude > Mathf.Epsilon * Mathf.Epsilon)
+    private void Move()
+    {
+        if (!_lockControls)
         {
-            Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, _lookSpeed * Time.deltaTime);
+            Vector3 flatForward = Vector3.ProjectOnPlane(_freeCam.transform.forward, Vector3.up).normalized;
+            Vector3 flatRight = Vector3.ProjectOnPlane(_freeCam.transform.right, Vector3.up).normalized;
+
+            Vector3 movement = _moveDirection.x * flatRight + _moveDirection.y * flatForward;
+
+            // Raycast to get slope
+            if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit slopeHit, 1.5f))
+            {
+                // Align movement to slope
+                movement = Vector3.ProjectOnPlane(movement, slopeHit.normal).normalized;
+            }
+
+            _controller.Move(movement * _moveSpeed * Time.deltaTime);
+            _animator.SetFloat(_moveSpeedParameter, movement.magnitude * _moveSpeed);
+
+            Vector3 lookDirection = new Vector3(movement.x, 0, movement.z);
+
+            if (movement.sqrMagnitude > Mathf.Epsilon * Mathf.Epsilon)
+            {
+                Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, _lookSpeed * Time.deltaTime);
+            }
         }
 
         if (_controller.isGrounded)
@@ -141,7 +185,7 @@ public class PlayerController : NetworkBehaviour
             verticalVelocity += -9.81f * Time.deltaTime;
         }
 
-        Vector3 gravityMove = new Vector3(0, verticalVelocity, 0);
+        Vector3 gravityMove = Vector3.up * verticalVelocity;
         _controller.Move(gravityMove * Time.deltaTime);
     }
 
@@ -188,8 +232,9 @@ public class PlayerController : NetworkBehaviour
     private void ToggleMovementOnRpc() => _movementDisabled = false;
 
     [Rpc(SendTo.Server)]
-    private void NotifyAnotherPlayerTouchedRpc()
+    private void NotifyAnotherPlayerTouchedRpc(ulong clientID)
     {
-        OnTouchedAnotherPlayer?.Invoke();
+        if (clientID != 0)
+            OnTouchedAnotherPlayer?.Invoke();
     }
 }

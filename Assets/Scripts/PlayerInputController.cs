@@ -8,6 +8,7 @@ public class PlayerInputController : MonoBehaviour, PlayerInputActions.IGameplay
 {
     public Action<Vector2> OnMoveInput;
     public Action<float> OnLookInput;
+    public Action OnDiveInput;
 
     private PlayerInputActions _playerInputActions;
     private PlayerInput _playerInput;
@@ -49,5 +50,10 @@ public class PlayerInputController : MonoBehaviour, PlayerInputActions.IGameplay
     public void OnLook(InputAction.CallbackContext context)
     {
         OnLookInput?.Invoke(context.ReadValue<float>());
+    }
+
+    public void OnDive(InputAction.CallbackContext context)
+    {
+        OnDiveInput?.Invoke();
     }
 }
