@@ -14,7 +14,7 @@ public class RoundManager : NetworkBehaviour
     private readonly string HOST_CHASE_PHASE_MESSAGE = "You're being chased!";
     private readonly string CLIENT_CHASE_PHASE_MESSAGE = "Catch the red guy!";
     private readonly string HOST_HIDE_PHASE_MESSAGE = "Run away from the others!";
-    private readonly string CLIENT_HIDE_PHASE_MESSAGE = "Hold on!";
+    private readonly string CLIENT_HIDE_PHASE_MESSAGE = "Wait for it...";
     private readonly string HOST_WIN_MESSAGE = "Red guy wins!";
     private readonly string CLIENT_WIN_MESSAGE = "The red guy has been caught!";
 
@@ -33,7 +33,7 @@ public class RoundManager : NetworkBehaviour
             return;
 
         LobbyManager.OnPlayerAddedToLobby += BeginRound;
-        PlayerController.OnTouchedAnotherPlayer += ClientWonRound;
+        PlayerController.OnTaggedHost += ClientWonRound;
     }
 
     public override void OnNetworkDespawn()
@@ -42,7 +42,7 @@ public class RoundManager : NetworkBehaviour
             return;
 
         LobbyManager.OnPlayerAddedToLobby -= BeginRound;
-        PlayerController.OnTouchedAnotherPlayer -= ClientWonRound;
+        PlayerController.OnTaggedHost -= ClientWonRound;
     }
 
     private IEnumerator BeginCountdown(float delayStart, int timeRemaining, Action EndAction)

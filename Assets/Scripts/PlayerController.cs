@@ -9,7 +9,7 @@ using System.Collections;
 [RequireComponent(typeof(PlayerInputController), typeof(CharacterController))]
 public class PlayerController : NetworkBehaviour
 {
-    public static Action OnTouchedAnotherPlayer;
+    public static Action OnTaggedHost;
 
     private CharacterController _controller;
     private PlayerInputController _playerInput;
@@ -26,6 +26,7 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private Animator _animator;
     [SerializeField] private float _moveSpeed;
     [SerializeField] private float _lookSpeed;
+    [SerializeField] private AnimationCurve _diveCurve;
 
     private readonly int _moveSpeedParameter = Animator.StringToHash("Speed");
     private readonly int _diveParameter = Animator.StringToHash("Dive");
@@ -73,7 +74,6 @@ public class PlayerController : NetworkBehaviour
             if (IsLocalPlayer) // Runs only for host on server
             {
                 _bodyColor.Value = Color.red;
-                transform.GetChild(0).GetComponent<Collider>().enabled = false;
                 _moveSpeed *= 1.2f;
             }
             else
@@ -120,6 +120,7 @@ public class PlayerController : NetworkBehaviour
     {        
         _lockControls = true;
         _animator.SetTrigger(_diveParameter);
+
         StartCoroutine(WaitForDive());
     }
 
@@ -128,7 +129,8 @@ public class PlayerController : NetworkBehaviour
         yield return new WaitForEndOfFrame();
         _animator.ResetTrigger(_diveParameter);
 
-        float endTime = Time.time + 2f;
+        float startTime = Time.time;
+        float endTime = startTime + 2f;
         Vector3 flatForward = Vector3.ProjectOnPlane(_freeCam.transform.forward, Vector3.up).normalized;
 
         // Raycast to get slope
@@ -139,10 +141,11 @@ public class PlayerController : NetworkBehaviour
         }
         while (Time.time < endTime)
         {
-            _controller.Move(flatForward * 4.5f* Time.deltaTime);
+            float easing = _diveCurve.Evaluate((Time.time - startTime) / (endTime - startTime));
+            _controller.Move(flatForward * 4.5f * easing * Time.deltaTime);
             yield return null;
         }
-
+        
         yield return new WaitForSeconds(2f);
 
         _lockControls = false;
@@ -234,7 +237,7 @@ public class PlayerController : NetworkBehaviour
     [Rpc(SendTo.Server)]
     private void NotifyAnotherPlayerTouchedRpc(ulong clientID)
     {
-        if (clientID != 0)
-            OnTouchedAnotherPlayer?.Invoke();
+        if (clientID == 0)
+            OnTaggedHost?.Invoke();
     }
 }

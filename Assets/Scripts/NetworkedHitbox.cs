@@ -12,9 +12,9 @@ public class NetworkedHitbox : NetworkBehaviour
         if (!HasAuthority)
             return;
 
-        NetworkObject networkObject = other.GetComponentInParent<NetworkObject>();
+        NetworkObject networkObject = other.transform.root.GetComponent<NetworkObject>();
 
-        if (networkObject != null && TryGetComponent(out PlayerController pc))
+        if (networkObject != null && networkObject.GetComponent<PlayerController>())
         {
             OnPlayerTouched?.Invoke(networkObject.OwnerClientId);
         }
